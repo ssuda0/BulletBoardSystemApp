@@ -16,82 +16,20 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import 'model/products_repository.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+
+
 import 'model/product.dart';
+import 'product.dart';
 import 'detail.dart';
+
 
 class HomePage extends StatelessWidget {
   // TODO: Add a variable for Category (104)
 
-  List<Card> _buildGridCards(BuildContext context) {
-    List<Product> products = ProductsRepository.loadProducts(Category.all);
-
-    if (products == null || products.isEmpty) {
-      return const <Card>[];
-    }
-
-    final ThemeData theme = Theme.of(context);
-    final NumberFormat formatter = NumberFormat.simpleCurrency(
-        locale: Localizations.localeOf(context).toString());
-
-    return products.map((product) {
-      return Card(
-        clipBehavior: Clip.antiAlias,
-        // TODO: Adjust card heights (103)
-        child: Column(
-          // TODO: Center items on the card (103)
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            AspectRatio(
-              aspectRatio: 18 / 11,
-              child: Image.asset(
-                product.assetName,
-                package: product.assetPackage,
-                fit: BoxFit.fitWidth,
-              ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 8.0),
-                child: Column(
-                  // TODO: Align labels to the bottom and center (103)
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  // TODO: Change innermost Column (103)
-                  children: <Widget>[
-                    // TODO: Handle overflowing labels (103)
-                    // TODO(larche): Make headline6 when available
-                    Text(
-                      product.name,
-                      style: theme.textTheme.title,
-                      maxLines: 1,
-                    ),
-                    SizedBox(height: 8.0),
-                    // TODO(larche): Make subtitle2 when available
-                    Text(
-                      formatter.format(product.price),
-                      style: theme.textTheme.body2,
-                    ),
-                    FlatButton(
-                      child : Text("more", style:TextStyle(color:Colors.blue)),
-                      onPressed:(){
-                        Navigator.pushNamed(context, DetailScreen.routeName, arguments: DetailArguments(product));
-                      }
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
-    // TODO: Return an AsymmetricView (104)
-    // TODO: Pass Category variable to AsymmetricView (104)
-
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -126,37 +64,123 @@ class HomePage extends StatelessWidget {
         ],
       ),
       body: Center(
-        child: GridView.count(
-          crossAxisCount: 2,
-          padding: EdgeInsets.all(16.0),
-          childAspectRatio: 8.0 / 9.0,
-          children: _buildGridCards(context),
-        ),
+        child : _buildBody(context),
       ),
       resizeToAvoidBottomInset: false,
     );
   }
-}
 
-//class ProductRecord{
-//  final int id;
-//  final int isFeatured;
-//  final String name;
-//  final int price;
-//  final DocumentReference reference;
-//
-//  ProductRecord.fromMap(Map<String, dynamic> map, {this.reference})
-//    : assert(map['id'] != null), //make sure the variable has a non-null value.
-//      assert(map['isFeatured']!=null),
-//      assert(map['name']!=null),
-//      assert(map['price']!=null),
-//      id = map['id'],
-//      isFeatured = map['isFeatured'],
-//      name = map['name'],
-//      price = map['price'];
-//
-//  ProductRecord.fromSnapshot(DocumentSnapshot snapshot)
-//    : this.fromMap(snapshot.data, reference : snapshot.reference);
-//
-//  String toString() => "Record<$name:$price>";
-//}
+  Widget _buildBody(BuildContext context){
+    return StreamBuilder<QuerySnapshot>(
+      stream: Firestore.instance.collection('Product').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return LinearProgressIndicator();
+        return _buildGridView(context, snapshot.data.documents);
+      },
+    );
+  }
+
+  Widget _buildGridView(context, List<DocumentSnapshot> snapshot){
+    print("2");
+    print(snapshot);
+    return GridView.count(
+      crossAxisCount: 2,
+      padding: EdgeInsets.all(16.0),
+      childAspectRatio: 8.0 / 9.0,
+      children: snapshot.map((data) => _buildGridCard(context, data)).toList(),
+      //children: _buildGridCards(context),
+    );
+  }
+
+  Widget _buildGridCard(BuildContext context, DocumentSnapshot data) {
+    print("3");
+    final ThemeData theme = Theme.of(context);
+    final NumberFormat formatter = NumberFormat.simpleCurrency(locale: Localizations.localeOf(context).toString());
+
+    final productRecord = ProductRecord.fromSnapshot(data);
+
+    final StorageReference storageReference = FirebaseStorage().ref().child(productRecord.assetName);
+    final imageUrl = storageReference.getDownloadURL().toString();
+
+
+    print(storageReference.getDownloadURL().toString());
+    return Card (
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          AspectRatio(
+            aspectRatio: 18 / 11,
+            child: FutureBuilder<Widget>(
+              future : _getImage(productRecord),
+              // ignore: missing_return
+              builder:  (BuildContext context, AsyncSnapshot<Widget> snapshot) {
+                switch (snapshot.connectionState) {
+                  case ConnectionState.none:
+                    return Text("Loading...");
+                  case ConnectionState.active:
+                    return Text("Loading...");
+                  case ConnectionState.waiting:
+                    return Text("Loading...");
+                  case ConnectionState.done:
+                      return snapshot.data;
+                  default:
+                    return Text("Loading...");
+                }
+              },
+            )
+          ),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(16.0, 12.0, 0.0, 0.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                      productRecord.name,
+                      style: TextStyle(
+                        fontSize: 15,
+                      )
+                  ),
+                  SizedBox(height: 8.0),
+                  Text(
+                    formatter.format(productRecord.price),
+                    style: theme.textTheme.body2,
+                  ),
+                  Expanded(
+                    child : Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: <Widget>[
+                        FlatButton(
+                            child : Text("more", style:TextStyle(color:Colors.blue)),
+                            onPressed:(){
+                              //Navigator.pushNamed(context, DetailScreen.routeName, arguments: DetailArguments(productRecord));
+                            }
+                        ),
+                      ],
+                    ),
+                  )
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+//  Future<String> _getImageURL(ProductRecord productRecord) async {
+//    print("4");
+//    print(productRecord.assetName);
+//    final StorageReference storageReference = FirebaseStorage().ref().child(productRecord.assetName);
+//    final url = await storageReference.getDownloadURL();
+//    return url.toString();
+//  }
+
+  Future<Widget> _getImage(ProductRecord productRecord) async {
+    final StorageReference storageReference = FirebaseStorage().ref().child(productRecord.assetName);
+    final url = await storageReference.getDownloadURL();
+    return Image.network(url.toString());
+  }
+}
