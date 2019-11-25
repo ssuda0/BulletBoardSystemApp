@@ -15,64 +15,93 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import 'model/products_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
-
-import 'model/product.dart';
 import 'product.dart';
+import 'add.dart';
+import 'mypage.dart';
 import 'detail.dart';
 
+class HomePage extends StatefulWidget{
+  static const routeName = '/homeScreen';
+  @override
+  HomePageState createState() => HomePageState();
+}
 
-class HomePage extends StatelessWidget {
+class HomePageState extends State<HomePage> {
   // TODO: Add a variable for Category (104)
-
+  int maxId = 0;
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
           icon: Icon(
-            Icons.menu,
-            semanticLabel: 'menu',
+            Icons.account_circle,
+            semanticLabel: 'profile',
           ),
           onPressed: () {
-            print('Menu button');
-          },
+            Navigator.pushNamed(context, MyPageScreen.routeName);
+            },
         ),
-        title: Text('SHRINE'),
+        title: Center(child : Text('SHRINE')),
         actions: <Widget>[
           IconButton(
             icon: Icon(
-              Icons.search,
-              semanticLabel: 'search',
+              Icons.add,
+              semanticLabel: 'add',
             ),
             onPressed: () {
-              print('Search button');
-            },
-          ),
-          IconButton(
-            icon: Icon(
-              Icons.tune,
-              semanticLabel: 'filter',
-            ),
-            onPressed: () {
-              print('Filter button');
+              Navigator.pushNamed(context, AddScreen.routeName, arguments : AddScreenArguments(maxId));
             },
           ),
         ],
       ),
-      body: Center(
-        child : _buildBody(context),
+      body: Column(
+        children: <Widget>[
+          Center(
+            child : _buildDropdownButton(context),
+          ),
+          Expanded(
+            child : _buildBody(context),
+          ),
+        ],
       ),
       resizeToAvoidBottomInset: false,
     );
   }
 
+  String dropdownValue = 'ASC';
+
+
+  Widget _buildDropdownButton(BuildContext context){
+    return DropdownButton<String>(
+      value: dropdownValue,
+      icon: Icon(Icons.arrow_drop_down),
+      iconSize: 24,
+      elevation: 16,
+      style: TextStyle(
+          color: Colors.deepPurple
+      ),
+      onChanged: (String newValue) {
+        setState(() {
+          dropdownValue = newValue;
+        });
+      },
+      items: <String>['ASC', 'DESC'].map<DropdownMenuItem<String>>((String value) {
+        return DropdownMenuItem<String>(
+          value: value,
+          child: Text(value),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _buildBody(BuildContext context){
     return StreamBuilder<QuerySnapshot>(
-      stream: Firestore.instance.collection('Product').snapshots(),
+      stream: dropdownValue=='DESC'?  Firestore.instance.collection('Product').orderBy('price', descending: true).snapshots()
+          : Firestore.instance.collection('Product').orderBy('price').snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return LinearProgressIndicator();
         return _buildGridView(context, snapshot.data.documents);
@@ -81,8 +110,6 @@ class HomePage extends StatelessWidget {
   }
 
   Widget _buildGridView(context, List<DocumentSnapshot> snapshot){
-    print("2");
-    print(snapshot);
     return GridView.count(
       crossAxisCount: 2,
       padding: EdgeInsets.all(16.0),
@@ -93,39 +120,33 @@ class HomePage extends StatelessWidget {
   }
 
   Widget _buildGridCard(BuildContext context, DocumentSnapshot data) {
-    print("3");
     final ThemeData theme = Theme.of(context);
     final NumberFormat formatter = NumberFormat.simpleCurrency(locale: Localizations.localeOf(context).toString());
 
     final productRecord = ProductRecord.fromSnapshot(data);
 
-    final StorageReference storageReference = FirebaseStorage().ref().child(productRecord.assetName);
-    final imageUrl = storageReference.getDownloadURL().toString();
+    if(maxId < productRecord.id){
+      maxId = productRecord.id;
+    }
 
-
-    print(storageReference.getDownloadURL().toString());
     return Card (
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           AspectRatio(
-            aspectRatio: 18 / 11,
+              aspectRatio: 18 / 11,
             child: FutureBuilder<Widget>(
               future : _getImage(productRecord),
               // ignore: missing_return
               builder:  (BuildContext context, AsyncSnapshot<Widget> snapshot) {
                 switch (snapshot.connectionState) {
-                  case ConnectionState.none:
-                    return Text("Loading...");
-                  case ConnectionState.active:
-                    return Text("Loading...");
-                  case ConnectionState.waiting:
-                    return Text("Loading...");
                   case ConnectionState.done:
-                      return snapshot.data;
-                  default:
-                    return Text("Loading...");
+                    if (snapshot.hasError)
+                      return Image.network('http://handong.edu/site/handong/res/img/logo.png');
+                    return snapshot.data;
+                default:
+                  return Text('loading...');
                 }
               },
             )
@@ -154,7 +175,7 @@ class HomePage extends StatelessWidget {
                         FlatButton(
                             child : Text("more", style:TextStyle(color:Colors.blue)),
                             onPressed:(){
-                              //Navigator.pushNamed(context, DetailScreen.routeName, arguments: DetailArguments(productRecord));
+                              Navigator.pushNamed(context, DetailScreen.routeName, arguments: DetailArguments(data));
                             }
                         ),
                       ],
@@ -169,14 +190,6 @@ class HomePage extends StatelessWidget {
     );
   }
 
-
-//  Future<String> _getImageURL(ProductRecord productRecord) async {
-//    print("4");
-//    print(productRecord.assetName);
-//    final StorageReference storageReference = FirebaseStorage().ref().child(productRecord.assetName);
-//    final url = await storageReference.getDownloadURL();
-//    return url.toString();
-//  }
 
   Future<Widget> _getImage(ProductRecord productRecord) async {
     final StorageReference storageReference = FirebaseStorage().ref().child(productRecord.assetName);

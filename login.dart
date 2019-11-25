@@ -16,11 +16,14 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import 'home.dart';
+
 final FirebaseAuth _auth = FirebaseAuth.instance;
 final GoogleSignIn _googleSignIn = GoogleSignIn();
 
 
 class LoginPage extends StatefulWidget {
+  static const routeName = '/loginScreen';
   @override
   _LoginPageState createState() => _LoginPageState();
 }
@@ -28,7 +31,6 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   bool _success;
   String _userID;
-
 
   void _signInWithGoogle(BuildContext context) async {
     final GoogleSignInAccount googleUser = await _googleSignIn.signIn();
@@ -50,7 +52,8 @@ class _LoginPageState extends State<LoginPage> {
       if (user != null) {
         _success = true;
         _userID = user.uid;
-        Navigator.pop(context);
+        Navigator.pushNamed(context, HomePage.routeName);
+        //Navigator.pop(context);
       } else {
         _success = false;
       }
@@ -78,7 +81,8 @@ class _LoginPageState extends State<LoginPage> {
       if (user != null) {
         _success = true;
         _userID = user.uid;
-        Navigator.pop(context);
+        Navigator.pushNamed(context, HomePage.routeName);
+        //Navigator.pop(context);
       } else {
         _success = false;
       }
@@ -101,8 +105,6 @@ class _LoginPageState extends State<LoginPage> {
               ],
             ),
             SizedBox(height: 120.0),
-            // TODO: Wrap Username with AccentColorOverride (103)
-            // TODO: Remove filled: true values (103)
             RaisedButton(
               child: Text('GOOGLE Sign In'),
               onPressed: () {
@@ -110,7 +112,6 @@ class _LoginPageState extends State<LoginPage> {
               },
             ),
             SizedBox(height: 12.0),
-            // TODO: Wrap Password with AccentColorOverride (103)
             RaisedButton(
               child: Text('GUEST Sign In'),
               onPressed: () {
